@@ -1,9 +1,5 @@
 # CorelDRAW Live MCP
 
-**作者 / 维护者：dhxg**
-
-> 通过 MCP（Model Context Protocol）协议，让 AI 直接操控你电脑上已经打开的 CorelDRAW。用自然语言就能完成设计、改稿、批量生产，不需要手动逐张操作。
-
 ---
 
 ## 1. 这个项目解决什么问题
