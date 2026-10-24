@@ -1,0 +1,17 @@
+{
+  "mcpServers": {
+    "coreldraw-live": {
+      "command": "C:\\path\\to\\coreldraw-mcp\\.venv\\Scripts\\python.exe",
+      "args": [
+        "C:\\path\\to\\coreldraw-mcp\\server\\server.py",
+        "--transport",
+        "stdio"
+      ],
+      "env": {
+        "PYTHONUNBUFFERED": "1",
+        "COREL_ATTACH_POLICY": "existing_only",
+        "COREL_TOOL_PROFILE": "compact"
+      }
+    }
+  }
+}

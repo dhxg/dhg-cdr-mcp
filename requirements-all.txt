@@ -1,0 +1,18 @@
+-r requirements.txt
+
+# Bundled LLM/Streamlit agent
+anthropic>=0.40.0
+openai>=1.0.0
+streamlit>=1.35.0
+
+# Data merge, barcode, and image helpers
+pandas>=2.0.0
+openpyxl>=3.1.0
+xlrd>=2.0.0
+qrcode[pil]>=7.4.0
+python-barcode>=0.15.0
+Pillow>=10.0.0
+
+# Optional local HTTPS wrapper
+cryptography>=42.0.0
+uvicorn>=0.30.0
