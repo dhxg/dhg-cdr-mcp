@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.3.0 — Text proofread, auto color-mark & fix
+
+### Added
+
+- New proofread toolset (4 tools, local-only, zero external API / zero quota):
+  `extract_selected_text`, `mark_text_errors`, `restore_marked_colors`,
+  `fix_text_errors`.
+- **Function spec**: after proofreading, problem text is color-marked
+  automatically without asking; marking only changes fill color and is always
+  recoverable in one click.
+- Check scope: 3 categories only — typos (red), awkward wording (blue), logic
+  issues (orange); punctuation checking is intentionally dropped.
+- Smart color-matching: each segment's original color is read before marking;
+  if it clashes with the category color, the most contrasting palette color is
+  used instead (`changed_segments` reports the substitution).
+- Marked-state persistence: records are saved to the system temp directory, so
+  one-click restore survives MCP server restarts.
+- **Fix tool**: `fix_text_errors` replaces misspelled/awkward text by character
+  range, automatically restoring marked colors before editing, processing
+  multiple edits on one object from the end to avoid index drift.
+- Character-level positioning via `Story.Characters(Start, Length)` (1-based),
+  with whole-object fallback when character access is unavailable.
+
+### Technical notes
+
+- Marked ranges are addressed by shape_id + 0-based start/end only; text
+  content is never re-sent, keeping the conversation token usage minimal.
+
 ## 0.2.2 — Release hygiene and export timeout
 
 ### Fixed
