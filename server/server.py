@@ -227,7 +227,7 @@ def main():
 
     setup_logging(is_stdio=(args.transport == "stdio"))
 
-    logger.info("CorelDRAW Live MCP v0.2.2 · 作者: dhxg")
+    logger.info("CorelDRAW Live MCP v0.3.1 · 作者: dhxg")
     logger.info("Starting CorelDRAW Live MCP Server...")
 
     # 懒连接：启动时不主动连 CDR（避免用户没需要 CDR 时它被自动打开），

@@ -1,6 +1,6 @@
 # CorelDRAW MCP — Phased Implementation Plan
 
-## Current release: 0.2.2 Live Edit Core
+## Current release: 0.3.1 Live Edit Core
 
 This release changes the project from a collection of independent active-document COM calls into a session-based live-edit engine.
 
