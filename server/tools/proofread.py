@@ -5,9 +5,21 @@
   标记不是可选项，是本功能的既定行为；标记只改颜色、不改内容，可一键恢复。
 - 检查范围 3 类：错别字 / 语句不通 / 逻辑问题（标点错误不再检查）。
   颜色对应：红=错别字，蓝=语句不通，橙=逻辑问题。
+- **检查步骤（每次必做，三步走全，不得只查错字）**：
+  ① 先通读全段，逐句判断是否通顺——搭配不当、成分残缺/赘余、语序不当、
+     关联词误用、句式杂糅、重复啰嗦等语病，标 grammar=蓝；
+  ② 再逐字核对错别字（同音/形近/输入法错字），标 typo=红；
+  ③ 最后看逻辑问题（前后矛盾、因果倒置、范围不当），标 logic=橙。
+- **标红必须走 mark_text_errors，禁止用 apply_operations 等通用改色工具**
+  （通用改色会把整段/整个对象变色，且无法一键恢复）。
 - 标记前自动读取原色，撞色自动换反差色（changed_segments 注明），不混淆。
 - 一键恢复：restore_marked_colors 还原全部标记为原色；标记记录持久化到
   系统临时目录（服务重启不丢）。
+- **标记完成后的处理流程（对话侧执行）**：
+  ① 给用户两个选择（豆包侧用弹窗点击）：1 我帮你改 / 2 你自己改；
+  ② 选"我帮你改"→ 调 fix_text_errors 改字（保留标记色）→ 改完再弹窗询问
+     "是否恢复到原色？"（是/否），用户选"是"才调 restore_marked_colors；
+  ③ 选"你自己改"→ 用户手动调整，改完再调 restore_marked_colors。
 
 设计要点（省 Token / 额度，硬要求）：
 - 三个工具全部是本地 COM 操作，不调用任何外部 API —— 0 Token、0 额度。
@@ -295,6 +307,9 @@ def mark_text_errors(errors: list[dict[str, Any]], color_map: dict[str, Any] | N
     [start, end]，基于 extract_selected_text 返回的 text 位置；type ∈ typo
     （错别字）/ grammar（语句不通）/ logic（逻辑问题）（punctuation 通道保留
     兼容，检查规范不再产出标点类）。
+    ⚠️ start/end 必须精确到错字本身的字符位置（0-based、闭区间），严禁把整句
+    或整段文字当作错误范围传入；可用 text.find("错字") 定位 start，
+    end = start + len(错字) - 1。
     默认色：typo=红，grammar=蓝，logic=橙，punctuation=绿，color_map 可覆盖。
     标记前自动读取原色，原色与标记色撞色时自动改用反差最大的颜色
     （结果里 changed_segments 注明），避免与设计稿原有彩色文字混淆。
@@ -457,8 +472,10 @@ def fix_text_errors(errors: list[dict[str, Any]]) -> ToolResult:
     闭区间 [start, end]，基于 extract_selected_text 返回的 text 位置；
     replacement 为正确文字。
     功能规范：
-    - 改字前自动恢复该文档的标记颜色（若有），先回到原色再改内容。
+    - 改字前不恢复标记颜色：替换后新字符继承原标记色（标记色保留，仍能看出
+      修改位置；是否恢复原色由对话侧在改完后弹窗询问用户）。
     - 同一对象多处修改按 start 从大到小处理，避免替换后索引漂移。
+    - 字数变化时自动平移标记记录中的后续段索引，恢复原色依然准确。
     - 只改指定范围文字，不删除元素、不保存文档。
     """
     conn = get_connection()
@@ -468,15 +485,8 @@ def fix_text_errors(errors: list[dict[str, Any]]) -> ToolResult:
     def _do() -> dict[str, Any]:
         if not errors:
             raise ValueError("errors 不能为空")
-        # 改字前自动恢复标记颜色（功能规范）
+        # 改字前不恢复标记颜色（功能规范）：标记色保留，改完由用户确认是否恢复
         _load_state()
-        restored = 0
-        if _MARKED_STATE:
-            doc0 = conn.app.ActiveDocument
-            doc0.Unit = _CDR_MILLIMETER
-            index0 = ShapeIndex(doc0.ActivePage)
-            restored, _ = _restore_marked(doc0, index0)
-            _save_state()
 
         doc = conn.app.ActiveDocument
         doc.Unit = _CDR_MILLIMETER
@@ -524,15 +534,27 @@ def fix_text_errors(errors: list[dict[str, Any]]) -> ToolResult:
             try:
                 seg = fn(start_1, length)
                 old_text = text[start : end + 1]
-                # 改字前读该段当前色（此时标记已恢复=原色）
+                # 读该段当前色（未恢复标记时为标记色：替换后新字符继承该色，
+                # 红色标记保留；未标记段则保持原色）
                 old_rgb = _read_color_rgb(seg.Fill.UniformColor)
                 seg.Text = replacement
-                # 替换后重设原色：Characters 替换新字符会继承被替换范围颜色
+                # 替换后重设当前色：Characters 替换新字符会继承被替换范围颜色
                 if old_rgb is not None:
                     try:
                         _set_range_rgb(fn(start_1, len(replacement)), old_rgb[0], old_rgb[1], old_rgb[2])
                     except Exception:
                         pass
+                # 同步更新标记记录：字数变化时平移后续段索引，本段更新为替换后长度
+                delta = len(replacement) - length
+                if delta != 0:
+                    st = _MARKED_STATE.get(sid)
+                    if st and st.get("segments"):
+                        st["segments"] = [
+                            (s1 + delta, ln, rgb) if s1 > start_1
+                            else (start_1, len(replacement), rgb) if s1 == start_1
+                            else (s1, ln, rgb)
+                            for (s1, ln, rgb) in st["segments"]
+                        ]
                 applied.append(
                     {
                         "shape_id": sid,
@@ -544,17 +566,20 @@ def fix_text_errors(errors: list[dict[str, Any]]) -> ToolResult:
             except Exception:
                 failed.append({"shape_id": sid, "range": [start, end], "reason": "替换失败"})
 
+        _save_state()  # 标记记录（含平移后的索引）落盘，恢复原色依然可用
         return {
-            "restored_before_fix": restored,
             "applied_items": len(applied),
             "applied": applied,
             "failed": failed,
+            "mark_kept": True,  # 标记色已保留，是否恢复由对话侧弹窗询问用户
         }
 
     result = conn.safe_call(_do, timeout=120, idempotent=False)
     if result["success"]:
         payload = result["result"]
         return ToolResult.ok(
-            f"已改 {payload['applied_items']} 处文字（改前恢复标记 {payload['restored_before_fix']} 字符）", **payload
+            f"已改 {payload['applied_items']} 处文字（标记色已保留，红色仍标注修改位置；"
+            f"如需恢复原色请调用 restore_marked_colors）",
+            **payload,
         )
     return ToolResult.fail(result.get("error", "改字失败"))
