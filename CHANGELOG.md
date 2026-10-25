@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.3.1 - Proofread flow: precise mark & fix keeps color
+
+### Fixed
+
+- mark_text_errors: description requires start/end to point exactly at the
+  misspelled characters (never the whole sentence/paragraph), with a
+  text.find() example.
+- fix_text_errors: no longer auto-restores mark colors before editing;
+  replaced characters keep the current mark color so corrected spots stay
+  visible; character-index bookkeeping auto-shifts when word count changes.
+
+### Changed
+
+- Function spec: three-step check (awkward wording -> typos -> logic);
+  after fixing, the assistant asks the user whether to restore original
+  colors instead of restoring automatically.
+
 ## 0.3.0 — Text proofread, auto color-mark & fix
 
 ### Added
