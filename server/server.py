@@ -46,7 +46,7 @@ def setup_logging(is_stdio: bool = False):
 
 
 def register_tools():
-    from tools import live, search, shapes, board
+    from tools import live, search, shapes, board, proofread
 
     # Compact is the production default: a small, session-safe tool surface is
     # more reliable across models.  Set COREL_TOOL_PROFILE=legacy to expose the
@@ -80,6 +80,10 @@ def register_tools():
         shapes.create_org_chart,
         board.parse_board_records,
         board.batch_system_board,
+        proofread.extract_selected_text,
+        proofread.mark_text_errors,
+        proofread.restore_marked_colors,
+        proofread.fix_text_errors,
     ]
     for tool in compact_tools:
         _register_tool(tool)
