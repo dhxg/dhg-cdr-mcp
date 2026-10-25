@@ -2008,13 +2008,22 @@ def duplicate_shapes(
 
 def _sort_reading_order(items):
     """把选中元素按"阅读顺序"排序：先从上到下分行，同一行内从左到右。
-    CDR COM 坐标 Y 轴向上，TopY 越靠上值越大；LeftX 越靠左越小。
-    行容差取这些框高度中位数的一半（同行 top 差异在此内即视为同一行）。"""
+
+    输入坐标统一为 page-top-left mm（与 inspect_document 一致）：
+    top_y_mm 距页面顶部向下增长，数值越小越靠上；left_x_mm 数值越小越靠左。
+    行容差取这些框高度中位数的一半（同行 top 差异在此内即视为同一行）。
+
+    Returns:
+        (ordered_items, row_of, col_of)
+        - ordered_items: 从上到下、每行内从左到右排好的列表
+        - row_of: {shape_id: 从上到下第几行 (1-based)}
+        - col_of: {shape_id: 该行内从左到右第几列 (1-based)}
+    """
     if not items:
-        return items
+        return items, {}, {}
     hs = sorted(float(d.get("height_mm") or 0) for d in items)
     tol = (hs[len(hs) // 2] * 0.5) or 1.0
-    by_top = sorted(items, key=lambda d: -float(d.get("top_y_mm") or 0))  # 上→下
+    by_top = sorted(items, key=lambda d: float(d.get("top_y_mm") or 0))  # 上→下（top-left: y 小=在上）
     rows = []
     for it in by_top:
         top = float(it.get("top_y_mm") or 0)
@@ -2028,12 +2037,17 @@ def _sort_reading_order(items):
                 break
         if not placed:
             rows.append({"top": top, "items": [it]})
-    rows.sort(key=lambda r: -r["top"])  # 行从上到下
+    rows.sort(key=lambda r: r["top"])  # 行从上到下（top-left: y 小=在上）
     out = []
-    for row in rows:
+    row_of = {}
+    col_of = {}
+    for ri, row in enumerate(rows, start=1):
         row["items"].sort(key=lambda d: float(d.get("left_x_mm") or 0))  # 左→右
+        for ci, it in enumerate(row["items"], start=1):
+            row_of[str(it.get("shape_id"))] = ri
+            col_of[str(it.get("shape_id"))] = ci
         out.extend(row["items"])
-    return out
+    return out, row_of, col_of
 
 
 def get_selection() -> ToolResult:
@@ -2049,15 +2063,20 @@ def get_selection() -> ToolResult:
 
     type_name = {1: "rectangle", 3: "curve", 5: "bitmap", 6: "text", 7: "group"}
 
-    def _describe(s):
+    def _describe(s, page_height):
         t = int(s.Type)
+        # CorelDRAW 原生 COM 的 Y 轴向上增长（TopY = 形状顶部距页面底部的高度），
+        # 这里统一转成 page-top-left Y（距页面顶部向下增长，数值越小越靠上），
+        # 与 inspect_document 的 bounds.y 方向一致，避免调用方把上下看反。
+        native_top_y = float(s.TopY)
+        top_left_y = page_height - native_top_y
         d = {
             "shape_id": str(s.StaticID),
             "name": s.Name if s.Name else "",
             "type": type_name.get(t, str(t)),
             "type_code": t,
             "left_x_mm": round(float(s.LeftX), 2),
-            "top_y_mm": round(float(s.TopY), 2),
+            "top_y_mm": round(top_left_y, 2),
             "width_mm": round(float(s.SizeWidth), 2),
             "height_mm": round(float(s.SizeHeight), 2),
         }
@@ -2068,6 +2087,14 @@ def get_selection() -> ToolResult:
     def _do():
         doc = conn.app.ActiveDocument
         doc.Unit = _CDR_MILLIMETER
+        # 读页面高度，用于把 CorelDRAW 原生 Y 轴翻转成 page-top-left
+        page_h = 297.0
+        for getter in ("SizeHeight", "PageSizeHeight", "Height"):
+            try:
+                page_h = float(getattr(doc.ActivePage, getter))
+                break
+            except Exception:
+                continue
         # 用 SelectionRange 读选中（doc.Selection() 在无选中时返回 Type=8 占位，不可靠）
         sr = doc.SelectionRange
         n = int(sr.Count)
@@ -2079,8 +2106,12 @@ def get_selection() -> ToolResult:
             }
         items = []
         for i in range(1, n + 1):
-            items.append(_describe(sr.Item(i)))
-        items = _sort_reading_order(items)
+            items.append(_describe(sr.Item(i), page_h))
+        items, row_of, col_of = _sort_reading_order(items)
+        for it in items:
+            sid = str(it.get("shape_id"))
+            it["row_from_top"] = row_of.get(sid, 1)
+            it["col_from_left"] = col_of.get(sid, 1)
         return {"count": n, "items": items}
 
     result = conn.safe_call(_do, timeout=40)
