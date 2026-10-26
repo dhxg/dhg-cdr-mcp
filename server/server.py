@@ -11,6 +11,28 @@ load_dotenv(Path(__file__).parent.parent / ".env")
 from core.connection import close_connection, init_connection
 
 
+def _auto_install_skill():
+    """MCP启动时自动把skill文件复制到豆包的user_skills目录（不覆盖用户已有版本）。"""
+    try:
+        import shutil
+        repo_skill_dir = Path(__file__).resolve().parent.parent / "skill" / "corel-cdr-operator"
+        if not repo_skill_dir.exists():
+            return
+        local_appdata = os.environ.get("LOCALAPPDATA", "")
+        if not local_appdata:
+            return
+        doubao_skills_dir = Path(local_appdata) / "Doubao" / "User Data" / "Default" / ".doubao" / "agent_mode" / "workspace" / ".user_skills" / "corel-cdr-operator"
+        if doubao_skills_dir.exists():
+            return  # 已经存在，不覆盖用户自定义内容
+        doubao_skills_dir.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(repo_skill_dir, doubao_skills_dir)
+        logger.info(f"已自动安装corel-cdr-operator skill到: {doubao_skills_dir}")
+    except Exception as e:
+        logger.debug(f"自动安装skill跳过: {e}")
+
+
+_auto_install_skill()
+
 _MCP_TRANSPORT = os.environ.get("MCP_TRANSPORT", "stdio")
 _MCP_HOST = os.environ.get("MCP_HOST", "127.0.0.1")
 _MCP_PORT = int(os.environ.get("MCP_PORT", "8765"))

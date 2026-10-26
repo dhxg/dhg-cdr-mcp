@@ -22,6 +22,7 @@
 
 | 功能模块 | 代表工具 | 说明 |
 |---|---|---|
+| 错别字检查 | `extract_selected_text`、`mark_text_errors`、`fix_text_errors`、`restore_marked_colors` | 选中文字自动提取→AI检查错字/语病→分色标记错字→一键改字→恢复原色，全程0 Token |
 | 安全实时编辑 | `corel_status`、`attach_active_document`、`inspect_document`、`apply_operations`、`render_preview`、`save_current_document`、`undo_last_edit` | 附着到已打开文档 → 检查 → 原子批量修改（一次 Undo）→ 预览 → 保存，全程会话+版本校验 |
 | 批量搜图置入 | `batch_search_images`、`batch_search_and_place`、`batch_place_images` | 按关键词自动搜图（长边≥1000px、自动过滤水印/动图、并行下载），一次调用 PowerClip 置入选中的框 |
 | 批量数据牌/制度牌 | `parse_board_records`、`batch_system_board` | 解析 Word/Excel/纯文本数据 → 批量复制模板底板，按网格排版并替换标题正文 |
